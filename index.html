@@ -229,16 +229,34 @@
 
 <div class="toolbar">
   <button id="addRecord">+ Registro</button>
+  <button id="saveNow" class="whats">💾 Salvar agora</button>
   <button id="addResource" class="secondary">+ Linha de recurso</button>
   <button id="toggleHistory" class="secondary">Histórico de edições</button>
   <button id="sendWhats" class="whats">Enviar resumo (WhatsApp)</button>
   <button id="copySummary" class="secondary">Copiar resumo</button>
   <button id="printPage" class="secondary">Imprimir</button>
+  <button id="toggleVehicles" class="secondary">🚗 Veículos</button>
+  <button id="toggleObservations" class="secondary">📝 Observações</button>
+  <button id="changePassword" class="secondary">Trocar minha senha</button>
   <span id="syncStatus">carregando…</span>
 </div>
 
 <div class="content">
   <div id="historyPanel" class="history-panel hidden"></div>
+  <div id="vehiclesPanel" class="history-panel hidden">
+    <h2 style="margin-top:0;">Veículos Disponíveis no Plantão</h2>
+    <table>
+      <thead>
+        <tr><th>Veículo / Placa</th><th>Status</th><th style="width:20px"></th></tr>
+      </thead>
+      <tbody id="vehiclesBody"></tbody>
+    </table>
+    <div class="add-row-line"><button id="addVehicleBottom">+ adicionar veículo</button></div>
+  </div>
+  <div id="observationsPanel" class="history-panel hidden">
+    <h2 style="margin-top:0;">Observações</h2>
+    <textarea id="observationsText" style="width:100%;min-height:100px;padding:8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:.8rem;"></textarea>
+  </div>
 
   <table>
     <thead>
@@ -246,9 +264,9 @@
         <th style="width:26px">Nº</th>
         <th>Falecido</th>
         <th>Local do Velório</th>
-        <th style="width:60px">Saída</th>
+        <th style="width:90px">Saída (Data/Hora)</th>
         <th>Cemitério / Destino</th>
-        <th style="width:70px">Sepult.</th>
+        <th style="width:90px">Sepult. (Data/Hora)</th>
         <th style="width:70px">Urna</th>
         <th>Assistente</th>
         <th>Status</th>
@@ -281,17 +299,33 @@
 <div id="nameModal" class="modal hidden">
   <div class="modal-box">
     <p>Quem é você?</p>
-    <button data-name="Lucas Paulo">Lucas Paulo</button>
-    <button data-name="Davi Moreira">Davi Moreira</button>
-    <button data-name="Alex">Alex</button>
+    <button data-name="Lucas Paulo" data-email="lupaulosilva00@gmail.com">Lucas Paulo</button>
+    <button data-name="Davi Moreira" data-email="davi.moreira@dmstanatopraxia.com.br">Davi Moreira</button>
+    <button data-name="Alex" data-email="alexmarciallopes@gmail.com">Alex</button>
+    <button data-name="Fabíola Rodrigues" data-email="fabiolarodriguesfreittas@outlook.com">Fabíola Rodrigues (Supervisão)</button>
   </div>
 </div>
 
 <script>
-const WHATS_NUMBER = "5533999603507"; // WhatsApp do Davi
-let WEBAPP_URL = localStorage.getItem('escala-webapp-url') || "";
+const WHATS_NUMBER = "5533984017200"; // WhatsApp para envio do resumo
+// Cole aqui a URL do App da Web do Apps Script (a que termina em /exec).
+// Depois de colar aqui, a página nunca mais pede a URL, em nenhum navegador.
+const WEBAPP_URL_FIXA = "https://script.google.com/macros/s/AKfycbxTKm-tt2Quo1-_26JILJ_v4siZ-BnoKk1pYahcyI-h_DR1b0HDDdUX8d-_eet3MyWD/exec";
+
+// Senha individual de cada pessoa. Para trocar depois, é só editar o valor aqui.
+const SENHAS = {
+  "Lucas Paulo": "1234",
+  "Davi Moreira": "1234",
+  "Alex": "1234",
+  "Fabíola Rodrigues": "1234"
+};
+
+let WEBAPP_URL = WEBAPP_URL_FIXA || localStorage.getItem('escala-webapp-url') || "";
+const STATE_KEY = "escala-diaria-estado";
+const BACKEND = 'appscript';
 let state = null;
 let currentUser = null;
+let currentUserEmail = null;
 let editingCell = null; // evita perder edição em andamento durante a sincronização
 let lastSavedVersion = 0;
 
@@ -323,6 +357,10 @@ function blankMainRow(num){
 
 function blankResourceRow(){
   return { id: uid(), cells:[ {t:'',c:'white'},{t:'',c:'white'},{t:'',c:'green'},{t:'',c:'green'},{t:'',c:'white'},{t:'',c:'white'} ] };
+}
+
+function blankVehicleRow(){
+  return { id: uid(), cells:[ {t:'',c:'white'},{t:'',c:'white'} ] };
 }
 
 function defaultState(){
@@ -360,6 +398,9 @@ function defaultState(){
       {id:uid(), cells:[{t:'RME',c:'red'},{t:'CAPOTA ESTRAGADA',c:'red'},{t:'REMOÇÃO HCL',c:'red'},{t:'',c:'white'},{t:'',c:'white'},{t:'',c:'white'}]},
     ],
     history: [],
+    passwords: Object.assign({}, SENHAS),
+    vehicles: [],
+    observations: '',
     _v: Date.now()
   };
 }
@@ -367,18 +408,26 @@ function defaultState(){
 async function loadState(){
   document.getElementById('syncStatus').textContent = 'carregando…';
   try{
-    const res = await fetch(WEBAPP_URL, {method:'GET'});
-    const text = await res.text();
+    let text = "";
+    if(BACKEND === 'local'){
+      text = localStorage.getItem(STATE_KEY) || "";
+    } else if(BACKEND === 'claude'){
+      const r = await window.storage.get(STATE_KEY, true);
+      text = r && r.value ? r.value : "";
+    } else {
+      const res = await fetch(WEBAPP_URL, {method:'GET'});
+      text = await res.text();
+    }
     if(text && text.trim()){
       state = JSON.parse(text);
     } else {
       state = defaultState();
       await saveState("inicialização");
     }
-    document.getElementById('syncStatus').textContent = 'conectado';
+    document.getElementById('syncStatus').textContent = 'conectado (salvo neste navegador)';
   }catch(e){
     state = defaultState();
-    document.getElementById('syncStatus').textContent = 'sem conexão com a planilha — verifique a URL configurada';
+    document.getElementById('syncStatus').textContent = 'sem conexão — as edições não estão sendo salvas';
   }
   render();
 }
@@ -386,11 +435,17 @@ async function loadState(){
 async function saveState(reason){
   state._v = Date.now();
   try{
-    await fetch(WEBAPP_URL, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify(state)
-    });
+    if(BACKEND === 'local'){
+      localStorage.setItem(STATE_KEY, JSON.stringify(state));
+    } else if(BACKEND === 'claude'){
+      await window.storage.set(STATE_KEY, JSON.stringify(state), true);
+    } else {
+      await fetch(WEBAPP_URL, {
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify(state)
+      });
+    }
     document.getElementById('syncStatus').textContent = 'salvo ' + new Date().toLocaleTimeString('pt-BR');
   }catch(e){
     document.getElementById('syncStatus').textContent = 'erro ao salvar — verifique a conexão';
@@ -399,7 +454,7 @@ async function saveState(reason){
 
 function logEdit(desc){
   if(!state.history) state.history=[];
-  state.history.unshift({who: currentUser||'—', when: new Date().toLocaleString('pt-BR'), what: desc});
+  state.history.unshift({who: currentUser||'—', email: currentUserEmail||'', when: new Date().toLocaleString('pt-BR'), what: desc});
   state.history = state.history.slice(0,40);
 }
 
@@ -438,6 +493,8 @@ function render(){
   document.getElementById('dataEscala').value = state.date;
   renderMain();
   renderResources();
+  renderVehicles();
+  renderObservations();
   renderHistory();
 }
 
@@ -509,13 +566,47 @@ function renderResources(){
   });
 }
 
+function renderVehicles(){
+  const body = document.getElementById('vehiclesBody');
+  if(!body) return;
+  if(!state.vehicles) state.vehicles = [];
+  body.innerHTML = '';
+  state.vehicles.forEach((row, idx)=>{
+    const tr = document.createElement('tr');
+    row.cells.forEach((cell)=>{
+      tr.appendChild(makeCellTd(cell,
+        ()=>{ stampAndSave(cell, `${currentUser} editou veículo ${idx+1}`); }));
+    });
+    const tdDel = document.createElement('td');
+    tdDel.className='row-actions';
+    const btn = document.createElement('button');
+    btn.className='del-row'; btn.textContent='✕'; btn.title='Remover veículo';
+    btn.addEventListener('click', ()=>{
+      state.vehicles.splice(idx,1);
+      logEdit(`${currentUser} removeu veículo ${idx+1}`);
+      saveState('remocao'); render();
+    });
+    tdDel.appendChild(btn);
+    tr.appendChild(tdDel);
+    body.appendChild(tr);
+  });
+}
+
+function renderObservations(){
+  const box = document.getElementById('observationsText');
+  if(!box) return;
+  if(document.activeElement !== box){
+    box.value = state.observations || '';
+  }
+}
+
 function renderHistory(){
   const panel = document.getElementById('historyPanel');
   if(!state.history || state.history.length===0){
     panel.innerHTML = '<div>Nenhuma edição registrada ainda.</div>';
     return;
   }
-  panel.innerHTML = state.history.map(h=>`<div><strong>${h.who}</strong> — ${h.what} <span style="color:#bbb">(${h.when})</span></div>`).join('');
+  panel.innerHTML = state.history.map(h=>`<div><strong>${h.who}</strong>${h.email?' <span style="color:#aaa">('+h.email+')</span>':''} — ${h.what} <span style="color:#bbb">(${h.when})</span></div>`).join('');
 }
 
 function buildSummaryText(){
@@ -529,7 +620,7 @@ function buildSummaryText(){
   const velando = state.records.filter(r=>/velando/i.test(r.main[8].t)).length;
   lines.push('');
   lines.push(`Total de registros: ${total} · Velando: ${velando}`);
-  lines.push(`Atualizado por: ${currentUser||'—'}`);
+  lines.push(`Atualizado por: ${currentUser||'—'}${currentUserEmail?' ('+currentUserEmail+')':''}`);
   return lines.join('\n');
 }
 
@@ -552,6 +643,11 @@ document.getElementById('printPage').addEventListener('click', ()=>{
   window.print();
 });
 
+document.getElementById('saveNow').addEventListener('click', async ()=>{
+  document.getElementById('syncStatus').textContent = 'salvando…';
+  await saveState('manual');
+});
+
 document.getElementById('addRecord').addEventListener('click', addRecord);
 document.getElementById('addRecordBottom').addEventListener('click', addRecord);
 function addRecord(){
@@ -571,6 +667,31 @@ function addResource(){
   render();
 }
 
+document.getElementById('addVehicleBottom').addEventListener('click', ()=>{
+  if(!state.vehicles) state.vehicles = [];
+  state.vehicles.push(blankVehicleRow());
+  logEdit(`${currentUser} adicionou veículo`);
+  saveState('novo veiculo');
+  render();
+});
+
+document.getElementById('toggleVehicles').addEventListener('click', ()=>{
+  document.getElementById('vehiclesPanel').classList.toggle('hidden');
+});
+
+document.getElementById('toggleObservations').addEventListener('click', ()=>{
+  document.getElementById('observationsPanel').classList.toggle('hidden');
+});
+
+document.getElementById('observationsText').addEventListener('blur', (e)=>{
+  const val = e.target.value;
+  if(val !== state.observations){
+    state.observations = val;
+    logEdit(`${currentUser} editou as observações`);
+    saveState('observacoes');
+  }
+});
+
 document.getElementById('toggleHistory').addEventListener('click', ()=>{
   document.getElementById('historyPanel').classList.toggle('hidden');
 });
@@ -587,11 +708,42 @@ document.getElementById('userBadge').addEventListener('click', ()=>{
 
 document.querySelectorAll('#nameModal button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    currentUser = btn.dataset.name;
+    const nome = btn.dataset.name;
+    const senhaDigitada = prompt('Senha de ' + nome + ':');
+    if(senhaDigitada === null) return; // cancelou
+    if(senhaDigitada !== (state.passwords && state.passwords[nome])){
+      alert('Senha incorreta.');
+      return;
+    }
+    currentUser = nome;
+    currentUserEmail = btn.dataset.email || '';
     document.getElementById('userBadge').textContent = currentUser;
     document.getElementById('nameModal').classList.add('hidden');
     localStorage.setItem('meu-nome-editor', currentUser);
+    localStorage.setItem('meu-email-editor', currentUserEmail);
   });
+});
+
+document.getElementById('changePassword').addEventListener('click', ()=>{
+  if(!currentUser){ alert('Selecione seu nome primeiro.'); return; }
+  const atual = prompt('Digite sua senha atual:');
+  if(atual === null) return;
+  if(atual !== (state.passwords && state.passwords[currentUser])){
+    alert('Senha atual incorreta.');
+    return;
+  }
+  const nova = prompt('Digite a nova senha:');
+  if(nova === null || nova.trim() === '') return;
+  const confirma = prompt('Digite a nova senha de novo, pra confirmar:');
+  if(nova !== confirma){
+    alert('As senhas não coincidem. Nada foi alterado.');
+    return;
+  }
+  if(!state.passwords) state.passwords = {};
+  state.passwords[currentUser] = nova;
+  logEdit(`${currentUser} trocou a própria senha`);
+  saveState('troca de senha');
+  alert('Senha alterada com sucesso.');
 });
 
 document.getElementById('saveWebappUrl').addEventListener('click', ()=>{
@@ -604,35 +756,48 @@ document.getElementById('saveWebappUrl').addEventListener('click', ()=>{
 });
 
 async function init(){
-  if(!WEBAPP_URL){
+  if(BACKEND === 'appscript' && !WEBAPP_URL){
     document.getElementById('setupModal').classList.remove('hidden');
     return;
   }
+  await loadState();
+  if(!state.passwords){ state.passwords = Object.assign({}, SENHAS); saveState('senhas iniciais'); }
+  if(!state.vehicles){ state.vehicles = []; }
+  if(state.observations === undefined){ state.observations = ''; }
+
   const savedName = localStorage.getItem('meu-nome-editor');
   if(savedName){
     currentUser = savedName;
+    currentUserEmail = localStorage.getItem('meu-email-editor') || '';
     document.getElementById('userBadge').textContent = currentUser;
   } else {
     document.getElementById('nameModal').classList.remove('hidden');
   }
-  await loadState();
 
-  // busca alterações feitas por outros editores a cada 6s
-  setInterval(async ()=>{
-    if(editingCell) return;
-    try{
-      const res = await fetch(WEBAPP_URL, {method:'GET'});
-      const text = await res.text();
-      if(text && text.trim()){
-        const remote = JSON.parse(text);
-        if(remote._v && remote._v !== state._v){
-          state = remote;
-          render();
-          document.getElementById('syncStatus').textContent = 'atualizado por outro editor · ' + new Date().toLocaleTimeString('pt-BR');
+  // busca alterações feitas por outros editores a cada 6s (não se aplica ao modo local)
+  if(BACKEND !== 'local'){
+    setInterval(async ()=>{
+      if(editingCell) return;
+      try{
+        let text = "";
+        if(BACKEND === 'claude'){
+          const r = await window.storage.get(STATE_KEY, true);
+          text = r && r.value ? r.value : "";
+        } else {
+          const res = await fetch(WEBAPP_URL, {method:'GET'});
+          text = await res.text();
         }
-      }
-    }catch(e){}
-  }, 6000);
+        if(text && text.trim()){
+          const remote = JSON.parse(text);
+          if(remote._v && remote._v !== state._v){
+            state = remote;
+            render();
+            document.getElementById('syncStatus').textContent = 'atualizado por outro editor · ' + new Date().toLocaleTimeString('pt-BR');
+          }
+        }
+      }catch(e){}
+    }, 6000);
+  }
 }
 
 init();
