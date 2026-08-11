@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escala Diária de Atendimento</title>
+<style>
+  :root{
+    --navy:#0D1B3E;
+    --navy-2:#16274f;
+    --gold:#C8A96E;
+    --gold-dark:#A9822F;
+    --paper:#FAFAFA;
+    --line:#E1E1E1;
+    --ink:#2A2A2A;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    color:var(--ink);
+  }
+  header{
+    background:var(--navy);
+    color:#fff;
+    padding:14px 20px 12px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:14px;
+    justify-content:space-between;
+    border-bottom:2px solid var(--gold-dark);
+  }
+  header h1{
+    font-family:Georgia,'Times New Roman',serif;
+    font-size:1.05rem;
+    font-weight:600;
+    margin:0;
+    letter-spacing:.2px;
+  }
+  header .sub{
+    font-size:.65rem;
+    color:#B9C2D6;
+    letter-spacing:.4px;
+    text-transform:uppercase;
+    margin-top:2px;
+  }
+  .date-input{
+    background:rgba(255,255,255,.08);
+    border:1px solid var(--gold);
+    color:#fff;
+    padding:6px 10px;
+    border-radius:6px;
+    font-size:.85rem;
+  }
+  #userBadge{
+    background:var(--gold);
+    color:var(--navy);
+    font-weight:700;
+    font-size:.8rem;
+    padding:6px 12px;
+    border-radius:20px;
+    cursor:pointer;
+  }
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    padding:12px 20px;
+    background:#fff;
+    border-bottom:1px solid var(--line);
+    align-items:center;
+  }
+  .toolbar button{
+    background:var(--navy);
+    color:#fff;
+    border:none;
+    padding:8px 14px;
+    border-radius:6px;
+    font-size:.8rem;
+    cursor:pointer;
+    font-weight:600;
+  }
+  .toolbar button.secondary{
+    background:#fff;
+    color:var(--navy);
+    border:1px solid var(--navy);
+  }
+  .toolbar button.whats{
+    background:#22C55E;
+  }
+  .toolbar button:hover{opacity:.88;}
+  #syncStatus{
+    margin-left:auto;
+    font-size:.72rem;
+    color:#888;
+  }
+  .content{padding:14px 20px 40px;}
+  h2{
+    font-family:Georgia,serif;
+    font-size:1rem;
+    color:var(--navy);
+    margin:26px 0 8px;
+    border-bottom:2px solid var(--gold);
+    padding-bottom:4px;
+  }
+  table{
+    border-collapse:collapse;
+    width:100%;
+    background:#fff;
+    font-size:.68rem;
+  }
+  thead th{
+    background:var(--navy);
+    color:#fff;
+    font-size:.6rem;
+    font-weight:600;
+    padding:6px 5px;
+    border:1px solid var(--navy-2);
+    text-transform:uppercase;
+    letter-spacing:.3px;
+  }
+  td{
+    border:1px solid var(--line);
+    padding:0;
+    position:relative;
+    vertical-align:middle;
+  }
+  .cell{
+    min-height:22px;
+    padding:4px 6px;
+    outline:none;
+    font-size:.68rem;
+    cursor:text;
+    word-break:break-word;
+    background:#fff;
+    color:var(--ink);
+  }
+  .cell:focus{
+    box-shadow:inset 0 0 0 1.5px var(--navy);
+    background:#fbfbfb;
+  }
+  .num-cell .cell{text-align:center;font-weight:600;color:var(--navy);}
+  .name-cell .cell{font-weight:600;}
+  .hora-cell .cell{text-align:center;}
+  .empresa-cell .cell{font-weight:600;}
+  .resp-cell .cell{font-weight:600;}
+  .status-cell .cell{font-weight:600;text-align:center;color:var(--navy);}
+  .sub-row .cell{color:#666;font-size:.63rem;}
+  .del-row{
+    background:none;border:none;color:#999;cursor:pointer;font-size:.75rem;padding:2px 6px;
+  }
+  .row-actions{width:22px;text-align:center;border:none;background:transparent;}
+  .edited-mark{
+    position:absolute;
+    bottom:0;
+    left:0;
+    right:0;
+    font-size:.55rem;
+    color:#999;
+    padding:0 4px;
+    pointer-events:none;
+    opacity:0;
+    transition:opacity .15s;
+    background:rgba(255,255,255,.85);
+  }
+  td:hover .edited-mark{opacity:1;}
+  .modal{
+    position:fixed;inset:0;background:rgba(13,27,62,.7);
+    display:flex;align-items:center;justify-content:center;z-index:50;
+  }
+  .modal.hidden{display:none;}
+  .modal-box{
+    background:#fff;padding:28px 30px;border-radius:10px;text-align:center;
+    box-shadow:0 10px 40px rgba(0,0,0,.3);max-width:320px;
+  }
+  .modal-box p{font-family:Georgia,serif;color:var(--navy);font-size:1rem;margin-bottom:16px;}
+  .modal-box button{
+    display:block;width:100%;margin-bottom:8px;padding:10px;
+    border-radius:6px;border:1px solid var(--navy);background:#fff;color:var(--navy);
+    font-weight:700;cursor:pointer;font-size:.9rem;
+  }
+  .modal-box button:hover{background:var(--navy);color:#fff;}
+  .history-panel{
+    background:#fff;border:1px solid var(--line);border-radius:8px;
+    padding:10px 14px;margin-bottom:16px;font-size:.75rem;max-height:180px;overflow:auto;
+  }
+  .history-panel.hidden{display:none;}
+  .history-panel div{padding:3px 0;border-bottom:1px dashed var(--line);}
+  .history-panel strong{color:var(--navy);}
+  .add-row-line{
+    text-align:center;padding:8px;background:#fafafa;
+  }
+  .add-row-line button{
+    background:none;border:1px dashed #999;color:#555;padding:4px 10px;border-radius:5px;
+    font-size:.72rem;cursor:pointer;
+  }
+  footer{
+    text-align:center;font-size:.68rem;color:#999;padding:14px;
+  }
+  @media (max-width:700px){
+    table{font-size:.68rem;}
+    .cell{padding:4px 4px;}
+    thead th{font-size:.6rem;padding:5px 2px;}
+  }
+  @media print{
+    body{background:#fff;}
+    header, .toolbar, footer, .add-row-line, .row-actions, .edited-mark, .modal{display:none !important;}
+    .content{padding:0;}
+    table{font-size:9pt;}
+    .cell{padding:3px 5px;}
+    .cell:focus{box-shadow:none;background:#fff;}
+    thead th{background:#eee !important;color:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    h2{margin-top:14px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Escala Diária de Atendimento</h1>
+    <div class="sub">Grupo Em Vida Assistencial · Gestão Operacional</div>
+  </div>
+  <input type="date" id="dataEscala" class="date-input">
+  <div id="userBadge">Selecionar quem sou eu</div>
+</header>
+
+<div class="toolbar">
+  <button id="addRecord">+ Registro</button>
+  <button id="addResource" class="secondary">+ Linha de recurso</button>
+  <button id="toggleHistory" class="secondary">Histórico de edições</button>
+  <button id="sendWhats" class="whats">Enviar resumo (WhatsApp)</button>
+  <button id="copySummary" class="secondary">Copiar resumo</button>
+  <button id="printPage" class="secondary">Imprimir</button>
+  <span id="syncStatus">carregando…</span>
+</div>
+
+<div class="content">
+  <div id="historyPanel" class="history-panel hidden"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:26px">Nº</th>
+        <th>Falecido</th>
+        <th>Local do Velório</th>
+        <th style="width:60px">Saída</th>
+        <th>Cemitério / Destino</th>
+        <th style="width:70px">Sepult.</th>
+        <th style="width:70px">Urna</th>
+        <th>Assistente</th>
+        <th>Status</th>
+        <th style="width:20px"></th>
+      </tr>
+    </thead>
+    <tbody id="mainBody"></tbody>
+  </table>
+  <div class="add-row-line"><button id="addRecordBottom">+ adicionar registro</button></div>
+
+  <h2>Recursos / Apoio</h2>
+  <table>
+    <tbody id="resourceBody"></tbody>
+  </table>
+  <div class="add-row-line"><button id="addResourceBottom">+ adicionar linha de recurso</button></div>
+</div>
+
+<footer>Toque em uma célula para editar · as alterações são vistas por todos que abrirem este link</footer>
+
+<div id="setupModal" class="modal hidden">
+  <div class="modal-box" style="max-width:380px;text-align:left;">
+    <p style="text-align:center;">Configurar conexão</p>
+    <p style="font-size:.75rem;color:#555;margin-bottom:10px;">Cole aqui a URL do App da Web do Google Apps Script (termina em <code>/exec</code>). Só precisa fazer isso uma vez por navegador.</p>
+    <input id="webappUrlInput" type="text" placeholder="https://script.google.com/macros/s/.../exec"
+      style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:.75rem;margin-bottom:10px;">
+    <button id="saveWebappUrl">Salvar e conectar</button>
+  </div>
+</div>
+
+<div id="nameModal" class="modal hidden">
+  <div class="modal-box">
+    <p>Quem é você?</p>
+    <button data-name="Lucas Paulo">Lucas Paulo</button>
+    <button data-name="Davi Moreira">Davi Moreira</button>
+    <button data-name="Alex">Alex</button>
+  </div>
+</div>
+
+<script>
+const WHATS_NUMBER = "5533999603507"; // WhatsApp do Davi
+let WEBAPP_URL = localStorage.getItem('escala-webapp-url') || "";
+let state = null;
+let currentUser = null;
+let editingCell = null; // evita perder edição em andamento durante a sincronização
+let lastSavedVersion = 0;
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+function todayStr(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+function blankMainRow(num){
+  return {
+    id: uid(),
+    main: [
+      {t:String(num), c:'white'},
+      {t:'', c:'white'},
+      {t:'', c:'white'},
+      {t:'', c:'white'},
+      {t:'', c:'white'},
+      {t:'', c:'white'},
+      {t:'', c:'white'},
+      {t:'', c:'white'},
+      {t:'', c:'white'}
+    ],
+    sub1: [ {t:'',c:'white'},{t:'',c:'white'},{t:'',c:'yellow'},{t:'',c:'white'},{t:'',c:'yellow'},{t:'',c:'white'},{t:'',c:'white'},{t:'',c:'white'},{t:'',c:'white'} ],
+    sub2: [ {t:'',c:'white'},{t:'',c:'white'},{t:'',c:'white'},{t:'',c:'white'},{t:'',c:'white'},{t:'',c:'green'},{t:'',c:'green'},{t:'',c:'white'},{t:'',c:'white'} ]
+  };
+}
+
+function blankResourceRow(){
+  return { id: uid(), cells:[ {t:'',c:'white'},{t:'',c:'white'},{t:'',c:'green'},{t:'',c:'green'},{t:'',c:'white'},{t:'',c:'white'} ] };
+}
+
+function defaultState(){
+  const mk = (num,f,loc,h1,dest,h2,emp,resp,status,sub1vals,sub2vals)=>{
+    const r = blankMainRow(num);
+    r.main[1].t=f; r.main[2].t=loc; r.main[3].t=h1; r.main[4].t=dest; r.main[5].t=h2;
+    r.main[6].t=emp; r.main[7].t=resp; r.main[8].t=status;
+    if(sub1vals){ sub1vals.forEach((v,i)=>{ if(v!==null) r.sub1[i].t=v; }); }
+    if(sub2vals){ sub2vals.forEach((v,i)=>{ if(v!==null) r.sub2[i].t=v; }); }
+    return r;
+  };
+  return {
+    date: todayStr(),
+    records:[
+      mk(1,"CÉLIA DIAS DE OLIVEIRA","CAP. EV. MATIPÓ","8:00","CEMIT. SJ B. MATIPÓ","13:00","BDG","SAMUEL","VELANDO",
+        [null,null,"DIONE",null,"RGA",null,null,null,null],[null,null,null,null,null,"DIONE","RGA",null,"OK"]),
+      mk(2,"GLEBER MAGNO ELIAS","CAMPO DAS FLORES","8:00","CAMPO DAS FLORES","14:00","PAX","LUIZ","VELANDO",
+        [null,null,"EVALDO",null,"RUQ",null,null,null,null],[null,null,null,null,null,"EVALDO","RUQ",null,null]),
+      mk(3,"ALESSANDRA MÁRCIA GOMES","QUADRA PONTE DO SILVA","5:00","CEMIT. PONTE DO SILVA","16:00","DELICATA","SANDRO","VELANDO",
+        [null,null,"PAULO",null,"RBG",null,null,null,null],[null,null,null,null,null,"ESPERA FELIZ","TCN",null,"?"]),
+      mk(4,"EDIMAR GOMES FILHO","CAP. MUN. MÇU","7:00","CAMPO DAS FLORES","16:00","CASCÃO","FUNERÁRIA","VELANDO",
+        [null,null,"CARLOS",null,"QMU",null,null,null,null],[null,null,null,null,null,"EVALDO","RUQ",null,null]),
+      mk(5,"ENIR DE OLIVEIRA FERREIRA","CAP. MUN. MÇU","10:00","CAMPO DAS FLORES","15:00","BD","DANIEL ALC","LABORATÓRIO",
+        [null,null,"EVALDO",null,"QMU",null,null,null,null],[null,null,null,null,null,"LAJINHA","QWM",null,null]),
+      mk(6,"ARTHUR ALVARENGA BERTANI","CAMPO DAS FLORES","8:00","CEMIT. MUN. MÇU","16:00","BD","VICENTE","VELANDO",
+        [null,null,"MELQUES",null,"RBG",null,null,null,null],[null,null,null,null,null,"CLEMENTE","RBG",null,null]),
+      mk(7,"MANOELA MARIA TEIXEIRA","CAMPO DAS FLORES","8:00","CEMIT.MUN.SIMONESIA","16:00","BD","ODAIR","VELANDO",
+        [null,null,"SIMONESIA",null,"QNM",null,null,null,null],[null,null,null,null,null,"SIMONESIA","QNM",null,"OK"]),
+    ],
+    resources:[
+      {id:uid(), cells:[{t:'',c:'white'},{t:'',c:'white'},{t:'RUQ',c:'green'},{t:'EVALDO',c:'green'},{t:'',c:'white'},{t:'',c:'white'}]},
+      {id:uid(), cells:[{t:'',c:'white'},{t:'',c:'white'},{t:'RBG',c:'green'},{t:'CLEMENTE',c:'green'},{t:'',c:'white'},{t:'',c:'white'}]},
+      {id:uid(), cells:[{t:'',c:'white'},{t:'',c:'white'},{t:'QMU',c:'green'},{t:'JONAS',c:'green'},{t:'APOIO',c:'green'},{t:'15:00',c:'green'}]},
+      {id:uid(), cells:[{t:'',c:'white'},{t:'',c:'white'},{t:'TORO',c:'green'},{t:'GARAGEM',c:'green'},{t:'',c:'white'},{t:'',c:'white'}]},
+      {id:uid(), cells:[{t:'RME',c:'red'},{t:'CAPOTA ESTRAGADA',c:'red'},{t:'REMOÇÃO HCL',c:'red'},{t:'',c:'white'},{t:'',c:'white'},{t:'',c:'white'}]},
+    ],
+    history: [],
+    _v: Date.now()
+  };
+}
+
+async function loadState(){
+  document.getElementById('syncStatus').textContent = 'carregando…';
+  try{
+    const res = await fetch(WEBAPP_URL, {method:'GET'});
+    const text = await res.text();
+    if(text && text.trim()){
+      state = JSON.parse(text);
+    } else {
+      state = defaultState();
+      await saveState("inicialização");
+    }
+    document.getElementById('syncStatus').textContent = 'conectado';
+  }catch(e){
+    state = defaultState();
+    document.getElementById('syncStatus').textContent = 'sem conexão com a planilha — verifique a URL configurada';
+  }
+  render();
+}
+
+async function saveState(reason){
+  state._v = Date.now();
+  try{
+    await fetch(WEBAPP_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(state)
+    });
+    document.getElementById('syncStatus').textContent = 'salvo ' + new Date().toLocaleTimeString('pt-BR');
+  }catch(e){
+    document.getElementById('syncStatus').textContent = 'erro ao salvar — verifique a conexão';
+  }
+}
+
+function logEdit(desc){
+  if(!state.history) state.history=[];
+  state.history.unshift({who: currentUser||'—', when: new Date().toLocaleString('pt-BR'), what: desc});
+  state.history = state.history.slice(0,40);
+}
+
+function makeCellTd(cellObj, onTextChange, extraClass){
+  const td = document.createElement('td');
+  if(extraClass) td.className = extraClass;
+  const div = document.createElement('div');
+  div.className = 'cell';
+  div.contentEditable = 'true';
+  div.textContent = cellObj.t || '';
+  div.addEventListener('focus', ()=>{ editingCell = true; });
+  div.addEventListener('blur', ()=>{
+    editingCell = false;
+    const val = div.textContent.trim();
+    if(val !== cellObj.t){
+      cellObj.t = val;
+      onTextChange(val);
+    }
+  });
+  const mark = document.createElement('div');
+  mark.className='edited-mark';
+  if(cellObj.by){ mark.textContent = cellObj.by + ' · ' + cellObj.at; }
+  td.appendChild(div);
+  td.appendChild(mark);
+  return td;
+}
+
+function stampAndSave(cellObj, label){
+  cellObj.by = currentUser || '—';
+  cellObj.at = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  logEdit(label);
+  saveState(label);
+}
+
+function render(){
+  document.getElementById('dataEscala').value = state.date;
+  renderMain();
+  renderResources();
+  renderHistory();
+}
+
+function renderMain(){
+  const body = document.getElementById('mainBody');
+  body.innerHTML = '';
+  state.records.forEach((rec, idx)=>{
+    const classes = ['num-cell','name-cell','', 'hora-cell','', 'hora-cell','empresa-cell','resp-cell','status-cell'];
+    const trMain = document.createElement('tr');
+    rec.main.forEach((cell,i)=>{
+      trMain.appendChild(makeCellTd(cell,
+        (v)=>{ stampAndSave(cell, `${currentUser} editou "${headerName(i)}" do registro ${idx+1}`); },
+        classes[i]));
+    });
+    const tdDel = document.createElement('td');
+    tdDel.className='row-actions';
+    const btn = document.createElement('button');
+    btn.className='del-row'; btn.textContent='✕'; btn.title='Remover registro';
+    btn.addEventListener('click', ()=>{
+      if(confirm('Remover este registro?')){
+        state.records.splice(idx,1);
+        logEdit(`${currentUser} removeu o registro ${idx+1}`);
+        saveState('remocao'); render();
+      }
+    });
+    tdDel.appendChild(btn);
+    trMain.appendChild(tdDel);
+    body.appendChild(trMain);
+
+    [rec.sub1, rec.sub2].forEach((sub)=>{
+      const tr = document.createElement('tr');
+      tr.className = 'sub-row';
+      sub.forEach((cell)=>{
+        tr.appendChild(makeCellTd(cell,
+          ()=>{ stampAndSave(cell, `${currentUser} editou código auxiliar do registro ${idx+1}`); }));
+      });
+      const tdEmpty = document.createElement('td');
+      tr.appendChild(tdEmpty);
+      body.appendChild(tr);
+    });
+  });
+}
+
+function headerName(i){
+  return ['Nº','Falecido','Local do Velório','Saída','Cemitério/Destino','Sepultamento','Urna','Assistente','Status'][i]||'';
+}
+
+function renderResources(){
+  const body = document.getElementById('resourceBody');
+  body.innerHTML = '';
+  state.resources.forEach((row, idx)=>{
+    const tr = document.createElement('tr');
+    row.cells.forEach((cell)=>{
+      tr.appendChild(makeCellTd(cell,
+        ()=>{ stampAndSave(cell, `${currentUser} editou linha de recurso ${idx+1}`); }));
+    });
+    const tdDel = document.createElement('td');
+    tdDel.className='row-actions';
+    const btn = document.createElement('button');
+    btn.className='del-row'; btn.textContent='✕'; btn.title='Remover linha';
+    btn.addEventListener('click', ()=>{
+      state.resources.splice(idx,1);
+      logEdit(`${currentUser} removeu linha de recurso ${idx+1}`);
+      saveState('remocao'); render();
+    });
+    tdDel.appendChild(btn);
+    tr.appendChild(tdDel);
+    body.appendChild(tr);
+  });
+}
+
+function renderHistory(){
+  const panel = document.getElementById('historyPanel');
+  if(!state.history || state.history.length===0){
+    panel.innerHTML = '<div>Nenhuma edição registrada ainda.</div>';
+    return;
+  }
+  panel.innerHTML = state.history.map(h=>`<div><strong>${h.who}</strong> — ${h.what} <span style="color:#bbb">(${h.when})</span></div>`).join('');
+}
+
+function buildSummaryText(){
+  const lines = [];
+  lines.push(`Resumo da escala — ${state.date}`);
+  lines.push('');
+  state.records.forEach((r,i)=>{
+    lines.push(`${i+1}. ${r.main[1].t} — ${r.main[8].t || 'sem status'} (vel: ${r.main[2].t}, sep: ${r.main[4].t} ${r.main[5].t})`);
+  });
+  const total = state.records.length;
+  const velando = state.records.filter(r=>/velando/i.test(r.main[8].t)).length;
+  lines.push('');
+  lines.push(`Total de registros: ${total} · Velando: ${velando}`);
+  lines.push(`Atualizado por: ${currentUser||'—'}`);
+  return lines.join('\n');
+}
+
+document.getElementById('sendWhats').addEventListener('click', ()=>{
+  const text = encodeURIComponent(buildSummaryText());
+  window.open(`https://wa.me/${WHATS_NUMBER}?text=${text}`, '_blank');
+});
+
+document.getElementById('copySummary').addEventListener('click', async ()=>{
+  const text = buildSummaryText();
+  try{
+    await navigator.clipboard.writeText(text);
+    document.getElementById('syncStatus').textContent = 'resumo copiado!';
+  }catch(e){
+    alert(text);
+  }
+});
+
+document.getElementById('printPage').addEventListener('click', ()=>{
+  window.print();
+});
+
+document.getElementById('addRecord').addEventListener('click', addRecord);
+document.getElementById('addRecordBottom').addEventListener('click', addRecord);
+function addRecord(){
+  const nextNum = state.records.length+1;
+  state.records.push(blankMainRow(nextNum));
+  logEdit(`${currentUser} adicionou um novo registro`);
+  saveState('novo registro');
+  render();
+}
+
+document.getElementById('addResource').addEventListener('click', addResource);
+document.getElementById('addResourceBottom').addEventListener('click', addResource);
+function addResource(){
+  state.resources.push(blankResourceRow());
+  logEdit(`${currentUser} adicionou linha de recurso`);
+  saveState('novo recurso');
+  render();
+}
+
+document.getElementById('toggleHistory').addEventListener('click', ()=>{
+  document.getElementById('historyPanel').classList.toggle('hidden');
+});
+
+document.getElementById('dataEscala').addEventListener('change', (e)=>{
+  state.date = e.target.value;
+  logEdit(`${currentUser} alterou a data para ${state.date}`);
+  saveState('data');
+});
+
+document.getElementById('userBadge').addEventListener('click', ()=>{
+  document.getElementById('nameModal').classList.remove('hidden');
+});
+
+document.querySelectorAll('#nameModal button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    currentUser = btn.dataset.name;
+    document.getElementById('userBadge').textContent = currentUser;
+    document.getElementById('nameModal').classList.add('hidden');
+    localStorage.setItem('meu-nome-editor', currentUser);
+  });
+});
+
+document.getElementById('saveWebappUrl').addEventListener('click', ()=>{
+  const val = document.getElementById('webappUrlInput').value.trim();
+  if(!val){ alert('Cole a URL do App da Web do Apps Script.'); return; }
+  WEBAPP_URL = val;
+  localStorage.setItem('escala-webapp-url', WEBAPP_URL);
+  document.getElementById('setupModal').classList.add('hidden');
+  init();
+});
+
+async function init(){
+  if(!WEBAPP_URL){
+    document.getElementById('setupModal').classList.remove('hidden');
+    return;
+  }
+  const savedName = localStorage.getItem('meu-nome-editor');
+  if(savedName){
+    currentUser = savedName;
+    document.getElementById('userBadge').textContent = currentUser;
+  } else {
+    document.getElementById('nameModal').classList.remove('hidden');
+  }
+  await loadState();
+
+  // busca alterações feitas por outros editores a cada 6s
+  setInterval(async ()=>{
+    if(editingCell) return;
+    try{
+      const res = await fetch(WEBAPP_URL, {method:'GET'});
+      const text = await res.text();
+      if(text && text.trim()){
+        const remote = JSON.parse(text);
+        if(remote._v && remote._v !== state._v){
+          state = remote;
+          render();
+          document.getElementById('syncStatus').textContent = 'atualizado por outro editor · ' + new Date().toLocaleTimeString('pt-BR');
+        }
+      }
+    }catch(e){}
+  }, 6000);
+}
+
+init();
+</script>
+</body>
+</html>
